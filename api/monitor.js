@@ -15,32 +15,32 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         pageNumber: 1,
         pageSize: 5,
-        portfolioId: "5075281354358777856"
+        portfolioId: "5075281354358777856" // 带单员ID
       })
     });
 
     if (!binanceResponse.ok) {
-      return res.status(200).json({ success: false, message: "接口异常，静默" });
+      return res.status(200).json({ success: false, message: "币安异常，静默" });
     }
 
     const result = await binanceResponse.json();
     
-    // 🌟 核心拦截 1：如果币安返回的数据是空的，直接静默退出，绝对不调用钉钉！
+    // 拦截 1：如果没有数据，直接静默
     if (!result.data || result.data.length === 0) {
-      return res.status(200).json({ success: true, message: "暂无数据" });
+      return res.status(200).json({ success: true, message: "无数据，静默" });
     }
 
     const latestOrder = result.data[0];
-    const orderTime = latestOrder.updateTime; 
-    const currentTime = Date.now(); 
-    const timeDifference = currentTime - orderTime; 
+    const orderTime = latestOrder.updateTime; // 订单更新时间戳
+    const currentTime = Date.now(); // 当前时间戳
+    const timeDifference = currentTime - orderTime; // 时间差（毫秒）
 
-    // 🌟 核心拦截 2：如果这笔操作是 90 秒之前发生的旧历史，直接静默退出，绝对不调用钉钉！
+    // 🌟 拦截 2（最核心）：如果最新这笔单子是 90 秒之前发生的，说明是老动作，直接静默，绝不发钉钉！
     if (timeDifference > 90 * 1000) {
       return res.status(200).json({ success: true, message: "历史记录，静默" });
     }
 
-    // 🚀 只有通过了上面两重重开、重重的拦截，属于 90 秒内刚发生的全新交易，才会执行下面的钉钉发送！
+    // 🚀 只有通过了上面重重拦截，属于 90 秒内刚发生的实时新动作，才会发钉钉
     const symbol = latestOrder.symbol; 
     const side = latestOrder.closed ? "【平仓】" : "【开仓】"; 
     const positionSide = latestOrder.positionSide === "LONG" ? "做多 ↗️" : "做空 ↘️"; 
@@ -61,8 +61,8 @@ export default async function handler(req, res) {
       })
     });
 
-    res.status(200).json({ success: true, message: "新动作已推送" });
+    res.status(200).json({ success: true, message: "实时新动作推送成功" });
   } catch (error) {
-    res.status(200).json({ success: false, message: "日常异常静默" });
+    res.status(200).json({ success: false, message: "异常静默" });
   }
 }
