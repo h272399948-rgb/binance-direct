@@ -15,34 +15,32 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         pageNumber: 1,
         pageSize: 5,
-        portfolioId: "5075281354358777856" // 带单员ID
+        portfolioId: "5075281354358777856"
       })
     });
 
     if (!binanceResponse.ok) {
-      return res.status(200).json({ success: false, message: "币安接口异常，保持静默" });
+      return res.status(200).json({ success: false, message: "接口异常，静默" });
     }
 
     const result = await binanceResponse.json();
     
+    // 🌟 核心拦截 1：如果币安返回的数据是空的，直接静默退出，绝对不调用钉钉！
     if (!result.data || result.data.length === 0) {
-      return res.status(200).json({ success: true, message: "无操作记录，保持静默" });
+      return res.status(200).json({ success: true, message: "暂无数据" });
     }
 
-    // 获取最近的一条最新操作流水
     const latestOrder = result.data[0];
-    
-    // ⏱️ 核心时间拦截逻辑
-    const orderTime = latestOrder.updateTime; // 币安返回的操作时间戳（毫秒）
-    const currentTime = Date.now(); // 当前服务器时间戳（毫秒）
-    const timeDifference = currentTime - orderTime; // 算出这笔操作距离现在过去了多久
+    const orderTime = latestOrder.updateTime; 
+    const currentTime = Date.now(); 
+    const timeDifference = currentTime - orderTime; 
 
-    // 🌟 如果这笔单子距离现在已经超过了 90 秒（1.5分钟），说明是老历史记录，绝对不发通知！
+    // 🌟 核心拦截 2：如果这笔操作是 90 秒之前发生的旧历史，直接静默退出，绝对不调用钉钉！
     if (timeDifference > 90 * 1000) {
-      return res.status(200).json({ success: true, message: `最新操作已过去 ${Math.round(timeDifference/1000)} 秒，属于历史记录，保持静默` });
+      return res.status(200).json({ success: true, message: "历史记录，静默" });
     }
 
-    // 🚀 如果运行到这里，说明操作是在 90 秒内新鲜出炉的，立刻发送钉钉！
+    // 🚀 只有通过了上面两重重开、重重的拦截，属于 90 秒内刚发生的全新交易，才会执行下面的钉钉发送！
     const symbol = latestOrder.symbol; 
     const side = latestOrder.closed ? "【平仓】" : "【开仓】"; 
     const positionSide = latestOrder.positionSide === "LONG" ? "做多 ↗️" : "做空 ↘️"; 
@@ -59,14 +57,12 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         "msgtype": "text",
-        "text": { 
-          "content": `DT_币安带单监控提醒\n${messageContent}` 
-        }
+        "text": { "content": `DT_币安带单监控提醒\n${messageContent}` }
       })
     });
 
-    res.status(200).json({ success: true, message: "发现实时新动作，已成功推送！" });
+    res.status(200).json({ success: true, message: "新动作已推送" });
   } catch (error) {
-    res.status(200).json({ success: false, error: "系统异常，保持静默" });
+    res.status(200).json({ success: false, message: "日常异常静默" });
   }
 }
