@@ -1,32 +1,25 @@
-// 简化版 monitor.js (适配 GitHub Actions)
 const axios = require('axios');
 
 async function runMonitor() {
   try {
-    const binanceApiUrl = "https://www.binance.com/bapi/futures/v1/public/future/copy-trading/lead-portfolio/position-history";
     const dingTalkUrl = process.env.DINGTALK_WEBHOOK;
-
-    if (!dingTalkUrl) {
-      console.log("错误：未配置 DINGTALK_WEBHOOK");
-      return;
-    }
-
-    const response = await axios.post(binanceApiUrl, {
-      pageNumber: 1,
-      pageSize: 1,
-      portfolioId: "5075281354358777856"
-    }, {
-      headers: { "Content-Type": "application/json" }
+    
+    // 使用一个通用的网页版 API 或页面爬取逻辑
+    // 这里的 User-Agent 伪装成了 Chrome 浏览器
+    const response = await axios.get("https://www.binance.com/bapi/futures/v1/public/future/copy-trading/lead-portfolio/position-history?portfolioId=5075281354358777856", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.binance.com/"
+      }
     });
 
     const data = response.data?.data?.list?.[0];
     if (!data) {
-      console.log("无数据返回");
+      console.log("未获取到数据");
       return;
     }
 
-    // 构建消息，包含关键词 DT
-    const message = `DT_监控提醒\n动作: ${data.closed ? "平仓" : "开仓"}\n币种: ${data.symbol}\n价格: ${data.entryPrice}`;
+    const message = `DT_监控更新\n动作: ${data.closed ? "平仓" : "开仓"}\n币种: ${data.symbol}\n价格: ${data.entryPrice}`;
     
     await axios.post(dingTalkUrl, {
       msgtype: "text",
