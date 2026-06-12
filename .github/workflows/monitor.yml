@@ -1,68 +1,17 @@
-// monitor.js - GitHub Actions 自动化监控版本
-const axios = require('axios');
+name: Binance Monitor
+on:
+  workflow_dispatch:
 
-async function main() {
-  try {
-    const binanceApiUrl = "https://www.binance.com/bapi/futures/v1/public/future/copy-trading/lead-portfolio/position-history";
-    const dingTalkUrl = process.env.DINGTALK_WEBHOOK;
-
-    if (!dingTalkUrl) {
-      console.error("❌ 错误：未配置 DINGTALK_WEBHOOK 环境变量");
-      return;
-    }
-
-    const binanceResponse = await axios.post(binanceApiUrl, {
-      pageNumber: 1,
-      pageSize: 5,
-      portfolioId: "5075281354358777856"
-    }, {
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      },
-      timeout: 10000 // 增加超时设置，防止网络卡顿
-    });
-
-    const result = binanceResponse.data;
-    // 兼容 API 返回的数据结构
-    const orderList = result.data?.list || result.data || [];
-
-    if (!orderList || orderList.length === 0) {
-      console.log("⚠️ 无数据，静默中...");
-      return;
-    }
-
-    const latestOrder = orderList[0];
-    const orderTime = latestOrder.updateTime || latestOrder.time;
-    const currentTime = Date.now();
-
-    // 逻辑：如果动作发生在 300 秒（5分钟）内，则视为新动作推送
-    if (currentTime - orderTime > 300 * 1000) {
-      console.log("⏳ 暂无最新实时操作 (距上次动作 > 5分钟)");
-      return;
-    }
-
-    // 格式化输出
-    const symbol = latestOrder.symbol;
-    const side = latestOrder.closed ? "【平仓】" : "【开仓】";
-    const positionSide = latestOrder.positionSide === "LONG" ? "做多 ↗️" : "做空 ↘️";
-    const entryPrice = latestOrder.entryPrice || "未知";
-    const amount = latestOrder.closedVolume || latestOrder.volume || "未知";
-    const pnl = latestOrder.pnl ? `\n• 已实现盈亏: ${latestOrder.pnl} USDT` : "";
-
-    // 必须包含关键词 DT
-    const finalMessage = `DT_币安带单监控提醒\n✨ 带单员最新动作：\n• 动作: ${side} ${positionSide}\n• 币种: ${symbol}\n• 均价: ${entryPrice} USDT\n• 数量: ${amount}${pnl}`;
-
-    await axios.post(dingTalkUrl, {
-      msgtype: "text",
-      text: { content: finalMessage }
-    });
-
-    console.log("✅ 推送成功:", finalMessage);
-
-  } catch (error) {
-    console.error("💥 执行异常:", error.message);
-  }
-}
-
-main();
+jobs:
+  run-monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      - run: npm install axios
+      - name: Run script
+        env:
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+        run: node monitor.js
